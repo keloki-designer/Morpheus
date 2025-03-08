@@ -30,11 +30,12 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = "gpt-4"
 
 # Настройки Sber GigaChat
+CERT_PATH = "russian_trusted_root_ca.cer"
 GIGACHAT_API_KEY = os.getenv("GIGACHAT_API_KEY")
 GIGACHAT_MODEL = "GigaChat"
 
 # Настройки Google Calendar
-GOOGLE_CREDENTIALS_FILE = "google_credentials.json"
+GOOGLE_CREDENTIALS_FILE = "effortless-leaf-453113-t9-4ff924642d2f.json"
 CALENDAR_ID = os.getenv("GOOGLE_CALENDAR_ID")
 
 # Настройки для работы имитатора

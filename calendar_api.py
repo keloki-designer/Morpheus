@@ -1,75 +1,60 @@
-# calendar_api.py
 """
-Модуль для работы с Google Calendar API
+Модуль для работы с Google Calendar API через сервисный аккаунт
 """
 import logging
-import os.path
 import json
+import os
 from datetime import datetime, timedelta
 import dateutil.parser
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from google.oauth2.service_account import Credentials
 import config
 
 logger = logging.getLogger(__name__)
 
 # Определяем необходимые разрешения для доступа к Google Calendar
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
+import logging
+import os
+from datetime import datetime, timedelta
+import dateutil.parser
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+from google.oauth2.service_account import Credentials
+import config
+
+# Отключаем file_cache, чтобы убрать предупреждение
+import googleapiclient.discovery_cache
+googleapiclient.discovery_cache.DISABLED = True
+
+logger = logging.getLogger(__name__)
+
+SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
 class CalendarAPI:
-    """
-    Класс для работы с Google Calendar API
-    """
-
     def __init__(self, credentials_file=config.GOOGLE_CREDENTIALS_FILE, calendar_id=config.CALENDAR_ID):
-        """
-        Инициализация API для работы с Google Calendar
-
-        Args:
-            credentials_file (str): Путь к файлу с учетными данными
-            calendar_id (str): ID календаря
-        """
         self.credentials_file = credentials_file
         self.calendar_id = calendar_id
         self.service = None
         self._authenticate()
 
     def _authenticate(self):
-        """
-        Аутентификация в Google API
-        """
         try:
-            creds = None
-            token_file = 'token.json'
+            if not os.path.exists(self.credentials_file):
+                logger.error(f"Файл учетных данных {self.credentials_file} не найден")
+                return
 
-            # Проверяем наличие токена
-            if os.path.exists(token_file):
-                creds = Credentials.from_authorized_user_info(
-                    json.load(open(token_file)), SCOPES)
-
-            # Если токена нет или он недействителен, получаем новый
-            if not creds or not creds.valid:
-                if creds and creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-                else:
-                    flow = InstalledAppFlow.from_client_secrets_file(
-                        self.credentials_file, SCOPES)
-                    creds = flow.run_local_server(port=0)
-
-                # Сохраняем токен для последующего использования
-                with open(token_file, 'w') as token:
-                    token.write(creds.to_json())
-
-            # Создаем сервис для работы с Calendar API
-            self.service = build('calendar', 'v3', credentials=creds)
+            creds = Credentials.from_service_account_file(
+                self.credentials_file, scopes=SCOPES
+            )
+            self.service = build("calendar", "v3", credentials=creds)
             logger.info("Аутентификация в Google Calendar API успешна")
         except Exception as e:
             logger.error(f"Ошибка при аутентификации в Google Calendar API: {str(e)}")
             self.service = None
+
 
     def create_meeting(self, summary, description, start_time, duration_minutes=60, attendee_email=None):
         """
@@ -93,7 +78,6 @@ class CalendarAPI:
             # Парсим время начала встречи
             try:
                 if isinstance(start_time, str):
-                    # Пробуем распознать разные форматы времени
                     start_dt = dateutil.parser.parse(start_time)
                 else:
                     start_dt = start_time
@@ -106,27 +90,27 @@ class CalendarAPI:
 
             # Подготавливаем данные для события
             event = {
-                'summary': summary,
-                'description': description,
-                'start': {
-                    'dateTime': start_dt.isoformat(),
-                    'timeZone': 'Europe/Moscow',  # Можно вынести в настройки
+                "summary": summary,
+                "description": description,
+                "start": {
+                    "dateTime": start_dt.isoformat(),
+                    "timeZone": "Europe/Moscow",  
                 },
-                'end': {
-                    'dateTime': end_dt.isoformat(),
-                    'timeZone': 'Europe/Moscow',  # Можно вынести в настройки
+                "end": {
+                    "dateTime": end_dt.isoformat(),
+                    "timeZone": "Europe/Moscow",
                 },
-                'conferenceData': {
-                    'createRequest': {
-                        'requestId': f"meet-{int(datetime.now().timestamp())}",
-                        'conferenceSolutionKey': {'type': 'hangoutsMeet'}
+                "conferenceData": {
+                    "createRequest": {
+                        "requestId": f"meet-{int(datetime.now().timestamp())}",
+                        "conferenceSolutionKey": {"type": "hangoutsMeet"},
                     }
                 },
             }
 
             # Если указан email участника, добавляем его
             if attendee_email:
-                event['attendees'] = [{'email': attendee_email}]
+                event["attendees"] = [{"email": attendee_email}]
 
             # Создаем событие в календаре
             event = self.service.events().insert(
@@ -139,12 +123,12 @@ class CalendarAPI:
 
             # Получаем ссылку на встречу Google Meet
             meet_link = None
-            for entry_point in event.get('conferenceData', {}).get('entryPoints', []):
-                if entry_point.get('entryPointType') == 'video':
-                    meet_link = entry_point.get('uri')
+            for entry_point in event.get("conferenceData", {}).get("entryPoints", []):
+                if entry_point.get("entryPointType") == "video":
+                    meet_link = entry_point.get("uri")
                     break
 
-            return True, event.get('id'), meet_link
+            return True, event.get("id"), meet_link
         except HttpError as e:
             logger.error(f"Ошибка при создании встречи в Google Calendar: {str(e)}")
             return False, None, None

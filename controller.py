@@ -4,8 +4,9 @@
 """
 import logging
 import asyncio
-from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import config
 from database import Database
 
@@ -33,13 +34,9 @@ class TelegramController:
         """
         self.db = Database()
 
-        # Инициализация клиента Telegram
-        self.bot = Client(
-            "controller_bot",
-            api_id=config.API_ID,
-            api_hash=config.API_HASH,
-            bot_token=config.BOT_TOKEN
-        )
+        # Инициализация бота и диспетчера Telegram
+        self.bot = Bot(token=config.BOT_TOKEN)
+        self.dp = Dispatcher()
 
         # Регистрация обработчиков команд
         self._register_handlers()
@@ -50,8 +47,8 @@ class TelegramController:
         """
 
         # Команда /start
-        @self.bot.on_message(filters.command("start") & filters.private)
-        async def start_command(client, message):
+        @self.dp.message(Command("start"))
+        async def start_command(message: types.Message):
             await message.reply(
                 "Привет! Я бот-контроллер для управления ботом-имитатором.\n\n"
                 "Доступные команды:\n"
@@ -64,8 +61,8 @@ class TelegramController:
             )
 
         # Команда /help
-        @self.bot.on_message(filters.command("help") & filters.private)
-        async def help_command(client, message):
+        @self.dp.message(Command("help"))
+        async def help_command(message: types.Message):
             await message.reply(
                 "Справка по командам:\n\n"
                 "/chats - Показать список всех активных чатов\n"
@@ -77,8 +74,8 @@ class TelegramController:
             )
 
         # Команда /chats - показать активные чаты
-        @self.bot.on_message(filters.command("chats") & filters.private)
-        async def chats_command(client, message):
+        @self.dp.message(Command("chats"))
+        async def chats_command(message: types.Message):
             chats = self.db.get_active_chats()
 
             if not chats:
@@ -93,26 +90,21 @@ class TelegramController:
                 last_time = chat['last_message_time']
 
                 # Форматируем информацию о чате
-                text += f"ID: {chat_id}\nПользователь: {username}\nПоследнее сообщение: {last_time}\n"
+                chat_info = f"ID: {chat_id}\nПользователь: {username}\nПоследнее сообщение: {last_time}\n"
 
                 # Добавляем кнопки управления
-                keyboard = InlineKeyboardMarkup([
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [
-                        InlineKeyboardButton("Деактивировать", callback_data=f"deactivate_{chat_id}"),
+                        InlineKeyboardButton(text="Деактивировать", callback_data=f"deactivate_{chat_id}"),
                     ]
                 ])
 
-                # Отправляем сообщение с кнопками
-                await message.reply(text, reply_markup=keyboard)
-                text = ""  # Сбрасываем текст для следующего чата
-
-            # Если есть остаток текста, отправляем его
-            if text:
-                await message.reply(text)
+                # Отправляем сообщение с кнопками для каждого чата отдельно
+                await message.answer(chat_info, reply_markup=keyboard)
 
         # Команда /activate - активировать автоответчик для чата
-        @self.bot.on_message(filters.command("activate") & filters.private)
-        async def activate_command(client, message):
+        @self.dp.message(Command("activate"))
+        async def activate_command(message: types.Message):
             # Получаем chat_id из аргументов команды
             command_parts = message.text.split()
 
@@ -135,8 +127,8 @@ class TelegramController:
                 )
 
         # Команда /deactivate - деактивировать автоответчик для чата
-        @self.bot.on_message(filters.command("deactivate") & filters.private)
-        async def deactivate_command(client, message):
+        @self.dp.message(Command("deactivate"))
+        async def deactivate_command(message: types.Message):
             # Получаем chat_id из аргументов команды
             command_parts = message.text.split()
 
@@ -159,14 +151,14 @@ class TelegramController:
                 )
 
         # Команда /provider - показать текущий провайдер API
-        @self.bot.on_message(filters.command("provider") & filters.private)
-        async def provider_command(client, message):
+        @self.dp.message(Command("provider"))
+        async def provider_command(message: types.Message):
             provider = self.db.get_api_provider()
             await message.reply(f"Текущий провайдер API: {provider}")
 
         # Команда /set_provider - изменить провайдер API
-        @self.bot.on_message(filters.command("set_provider") & filters.private)
-        async def set_provider_command(client, message):
+        @self.dp.message(Command("set_provider"))
+        async def set_provider_command(message: types.Message):
             # Получаем название провайдера из аргументов команды
             command_parts = message.text.split()
 
@@ -192,32 +184,34 @@ class TelegramController:
                 await message.reply("Не удалось изменить провайдер API. Пожалуйста, попробуйте позже.")
 
         # Обработчик callback-запросов (для кнопок)
-        @self.bot.on_callback_query()
-        async def handle_callback(client, callback_query):
-            data = callback_query.data
+        @self.dp.callback_query()
+        async def handle_callback(callback: types.CallbackQuery):
+            data = callback.data
 
             # Обработка кнопки деактивации чата
             if data.startswith("deactivate_"):
                 chat_id = data.split("_")[1]
 
                 if self.db.deactivate_chat(chat_id):
-                    await callback_query.answer("Чат деактивирован")
-                    await callback_query.message.edit_text(
-                        callback_query.message.text + "\n\n✅ Автоматический режим деактивирован"
+                    await callback.answer("Чат деактивирован")
+                    # Обновляем текст сообщения
+                    await callback.message.edit_text(
+                        callback.message.text + "\n\n✅ Автоматический режим деактивирован"
                     )
                 else:
-                    await callback_query.answer("Не удалось деактивировать чат", show_alert=True)
+                    await callback.answer("Не удалось деактивировать чат", show_alert=True)
 
     async def start(self):
         """
         Запуск бота-контроллера
         """
         try:
-            await self.bot.start()
-            logger.info("Бот-контроллер запущен")
+            logger.info("Запуск бота-контроллера...")
 
-            # Бесконечный цикл для поддержания работы бота
-            await asyncio.sleep(86400)  # 24 часа
+            # Запуск поллинга
+            await self.dp.start_polling(self.bot)
+
+            logger.info("Бот-контроллер запущен")
         except Exception as e:
             logger.error(f"Ошибка при запуске бота-контроллера: {str(e)}")
 
@@ -226,7 +220,8 @@ class TelegramController:
         Остановка бота-контроллера
         """
         try:
-            await self.bot.stop()
+            # Закрытие сессии бота
+            await self.bot.session.close()
             logger.info("Бот-контроллер остановлен")
         except Exception as e:
             logger.error(f"Ошибка при остановке бота-контроллера: {str(e)}")
