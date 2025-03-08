@@ -65,6 +65,7 @@ class OpenAIProvider(TextGenerationAPI):
             logger.error(f"Ошибка при генерации ответа через OpenAI: {str(e)}")
             return "Извините, произошла ошибка при генерации ответа. Попробуйте позже."
 
+# Исправленный фрагмент для GigaChatProvider в api_providers.py
 
 class GigaChatProvider(TextGenerationAPI):
     """
@@ -77,6 +78,13 @@ class GigaChatProvider(TextGenerationAPI):
         self.model = config.GIGACHAT_MODEL
         self.token = None
         self._get_token()
+        # Путь к корневым сертификатам
+        self.verify = True
+        # Проверяем, существует ли путь к сертификатам
+        if hasattr(config, 'CERT_PATH') and config.CERT_PATH:
+            self.verify = config.CERT_PATH
+        elif not self.verify:
+            logger.warning("Использование verify=False небезопасно! Настройте сертификаты для продакшена.")
 
     def _get_token(self):
         """Получение токена авторизации для GigaChat API"""
@@ -94,7 +102,7 @@ class GigaChatProvider(TextGenerationAPI):
                 "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
                 headers=headers,
                 data=data,
-                verify=False  # В продакшене следует использовать сертификаты
+                verify=self.verify  # Используем настроенный verify
             )
 
             if response.status_code == 200:
@@ -113,6 +121,8 @@ class GigaChatProvider(TextGenerationAPI):
             # Если токен не получен или истек, получаем новый
             if not self.token:
                 self._get_token()
+                if not self.token:
+                    return "Извините, сервис временно недоступен. Не удалось получить доступ к API."
 
             formatted_prompt = prompt.format(
                 chat_history=chat_history,
@@ -138,11 +148,19 @@ class GigaChatProvider(TextGenerationAPI):
                 "https://gigachat.devices.sberbank.ru/api/v1/chat/completions",
                 headers=headers,
                 json=data,
-                verify=False  # В продакшене следует использовать сертификаты
+                verify=self.verify  # Используем настроенный verify
             )
 
             if response.status_code == 200:
                 return response.json()["choices"][0]["message"]["content"].strip()
+            elif response.status_code == 401:
+                # Токен устарел, получаем новый и пробуем еще раз
+                self._get_token()
+                if self.token:
+                    return self.generate_response(prompt, chat_history, user_message)
+                else:
+                    logger.error("Не удалось обновить токен GigaChat")
+                    return "Извините, сервис временно недоступен. Не удалось получить доступ к API."
             else:
                 logger.error(f"Ошибка при запросе к GigaChat API: {response.text}")
                 return "Извините, произошла ошибка при генерации ответа. Попробуйте позже."

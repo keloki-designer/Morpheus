@@ -5,6 +5,7 @@
 import logging
 import asyncio
 import sys
+import signal
 from imitator import TelegramImitator
 from controller import TelegramController
 import config
@@ -63,8 +64,6 @@ async def shutdown(imitator_bot, controller_bot):
 
 
 if __name__ == "__main__":
-    import signal
-
     logger.info("Запуск приложения")
 
     try:

@@ -146,50 +146,57 @@ class TelegramImitator:
         Returns:
             dict or None: Информация о встрече или None, если не найдена
         """
-        # Простые регулярные выражения для поиска даты и времени
-        # В реальном проекте стоит использовать более сложные алгоритмы или NLP
-        date_patterns = [
-            r"(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?",  # DD/MM/YYYY или DD/MM
-            r"(?:завтра|сегодня|послезавтра)",
-            r"(\d{1,2})(?:\s+)(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)"
-        ]
+        try:
+            if not message:
+                return None
 
-        time_patterns = [
-            r"(\d{1,2}):(\d{2})",  # HH:MM
-            r"в\s+(\d{1,2})(?:\s*)(часов|час)",  # в 15 часов
-            r"(\d{1,2})(?:\s*)(утра|вечера|дня)"  # 3 часа дня
-        ]
+            # Простые регулярные выражения для поиска даты и времени
+            # В реальном проекте стоит использовать более сложные алгоритмы или NLP
+            date_patterns = [
+                r"(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?",  # DD/MM/YYYY или DD/MM
+                r"(?:завтра|сегодня|послезавтра)",
+                r"(\d{1,2})(?:\s+)(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)"
+            ]
 
-        # Проверяем наличие упоминания о встрече
-        meeting_keywords = ["встреча", "встретиться", "созвон", "консультация", "консультацию"]
-        has_meeting_request = any(keyword in message.lower() for keyword in meeting_keywords)
+            time_patterns = [
+                r"(\d{1,2}):(\d{2})",  # HH:MM
+                r"в\s+(\d{1,2})(?:\s*)(часов|час)",  # в 15 часов
+                r"(\d{1,2})(?:\s*)(утра|вечера|дня)"  # 3 часа дня
+            ]
 
-        if not has_meeting_request:
+            # Проверяем наличие упоминания о встрече
+            meeting_keywords = ["встреча", "встретиться", "созвон", "консультация", "консультацию"]
+            has_meeting_request = any(keyword in message.lower() for keyword in meeting_keywords)
+
+            if not has_meeting_request:
+                return None
+
+            # Ищем дату и время в сообщении
+            found_date = None
+            for pattern in date_patterns:
+                matches = re.search(pattern, message.lower())
+                if matches:
+                    found_date = matches.group(0)
+                    break
+
+            found_time = None
+            for pattern in time_patterns:
+                matches = re.search(pattern, message.lower())
+                if matches:
+                    found_time = matches.group(0)
+                    break
+
+            if found_date or found_time:
+                return {
+                    "date": found_date,
+                    "time": found_time,
+                    "raw_message": message
+                }
+
             return None
-
-        # Ищем дату и время в сообщении
-        found_date = None
-        for pattern in date_patterns:
-            matches = re.search(pattern, message.lower())
-            if matches:
-                found_date = matches.group(0)
-                break
-
-        found_time = None
-        for pattern in time_patterns:
-            matches = re.search(pattern, message.lower())
-            if matches:
-                found_time = matches.group(0)
-                break
-
-        if found_date or found_time:
-            return {
-                "date": found_date,
-                "time": found_time,
-                "raw_message": message
-            }
-
-        return None
+        except Exception as e:
+            logger.error(f"Ошибка при извлечении информации о встрече: {str(e)}")
+            return None
 
     async def _schedule_meeting(self, client, message, meeting_info, username):
         """
