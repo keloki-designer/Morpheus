@@ -9,7 +9,9 @@ import asyncio
 import re
 from datetime import datetime
 from pyrogram import Client, filters
-from pyrogram.errors import FloodWait, Exception as PyrogramException
+from pyrogram.errors import FloodWait
+from pyrogram.errors import FloodWait
+from pyrogram import errors as PyrogramException
 import config
 from database import Database
 from api_providers import get_api_provider
@@ -20,7 +22,7 @@ logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("imitator.log"),
+        logging.FileHandler("imitator.log", encoding='utf-8'),
         logging.StreamHandler()
     ]
 )

@@ -77,8 +77,8 @@ class GigaChatProvider(TextGenerationAPI):
         self.api_key = config.GIGACHAT_API_KEY
         self.model = config.GIGACHAT_MODEL
         self.token = None
-        self._get_token()
-        # Путь к корневым сертификатам
+
+        # Инициализация атрибута verify перед вызовом _get_token()
         self.verify = True
         # Проверяем, существует ли путь к сертификатам
         if hasattr(config, 'CERT_PATH') and config.CERT_PATH:
@@ -86,6 +86,8 @@ class GigaChatProvider(TextGenerationAPI):
         elif not self.verify:
             logger.warning("Использование verify=False небезопасно! Настройте сертификаты для продакшена.")
 
+        # Теперь вызываем метод, когда verify уже определен
+        self._get_token()
     def _get_token(self):
         """Получение токена авторизации для GigaChat API"""
         try:

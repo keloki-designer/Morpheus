@@ -12,7 +12,7 @@ from database import Database
 # Настройка логирования
 logging.basicConfig(
     level=getattr(logging, config.LOG_LEVEL),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', encoding='utf-8',
     handlers=[
         logging.FileHandler("controller.log"),
         logging.StreamHandler()
